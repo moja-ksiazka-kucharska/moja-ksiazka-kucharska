@@ -5,103 +5,7 @@ class RecipeBook {
         this.initializeApp();
         this.setupEventListeners();
         this.displayRecipes();
-        this.loadSampleData();
-    }
-
-    // Sample recipes data
-    getSampleRecipes() {
-        return [
-            {
-                id: 1,
-                name: "Kotlety Schabowe",
-                prepTime: "30 min",
-                ingredients: [
-                    "4 kotlety schabowe",
-                    "2 jajka", 
-                    "100g bułki tartej",
-                    "50g mąki",
-                    "Sól i pieprz",
-                    "Olej do smażenia"
-                ],
-                instructions: [
-                    "Rozbij kotlety tłuczkiem do mięsa",
-                    "Oprósz kotlety mąką z obu stron",
-                    "Obtocz w roztrzepanych jajkach",
-                    "Panieruj w bułce tartej",
-                    "Smaż na rozgrzanym oleju z obu stron na złoty kolor",
-                    "Podawaj z ziemniakami i mizerii"
-                ]
-            },
-            {
-                id: 2,
-                name: "Pierogi Ruskie",
-                prepTime: "90 min",
-                ingredients: [
-                    "500g mąki",
-                    "1 jajko",
-                    "250ml ciepłej wody",
-                    "500g ziemniaków",
-                    "200g twarogu",
-                    "1 cebula",
-                    "Sól, pieprz"
-                ],
-                instructions: [
-                    "Zrób ciasto z mąki, jajka i wody",
-                    "Ugotuj ziemniaki i rozgnieć na puree",
-                    "Wymieszaj ziemniaki z twarogiem",
-                    "Podsmaż pokrojoną cebulę i dodaj do farszu",
-                    "Rozwałkuj ciasto i wykrój krążki",
-                    "Nałóż farsz i uszczelnij brzegi",
-                    "Gotuj w osolonej wodzie do wypłynięcia"
-                ]
-            }
-        ];
-    }
-
-    // AI extraction examples for demo
-    getAIExamples() {
-        return [
-            {
-                name: "Spaghetti Carbonara",
-                prepTime: "20 min",
-                ingredients: [
-                    "400g spaghetti",
-                    "200g boczku",
-                    "4 żółtka",
-                    "100g parmezanu",
-                    "Pieprz czarny",
-                    "Sól"
-                ],
-                instructions: [
-                    "Gotuj makaron al dente",
-                    "Podsmaż pokrojony boczek",
-                    "Wymieszaj żółtka z tartym parmezanem",
-                    "Połącz gorący makaron z boczkiem",
-                    "Dodaj mieszankę jajeczną, mieszając szybko",
-                    "Dopraw pieprzem i podawaj"
-                ]
-            },
-            {
-                name: "Kurczak Teriyaki",  
-                prepTime: "35 min",
-                ingredients: [
-                    "2 filety z kurczaka",
-                    "3 łyżki sosu sojowego",
-                    "2 łyżki miodu",
-                    "1 łyżka octu ryżowego",
-                    "1 ząbek czosnku",
-                    "Imbir, sezam"
-                ],
-                instructions: [
-                    "Pokrój kurczaka w paski",
-                    "Wymieszaj sos sojowy, miód i ocet",
-                    "Podsmaż kurczaka na patelni",
-                    "Dodaj sos i pokrojony czosnek z imbirem",
-                    "Gotuj do zagęszczenia sosu",
-                    "Posyp sezamem i podawaj z ryżem"
-                ]
-            }
-        ];
+        // USUNIĘTE: this.loadSampleData(); - bez przykładowych przepisów
     }
 
     initializeApp() {
@@ -135,18 +39,6 @@ class RecipeBook {
         });
     }
 
-    loadSampleData() {
-        // Load sample recipes if no recipes exist
-        if (this.recipes.length === 0) {
-            const sampleRecipes = this.getSampleRecipes();
-            sampleRecipes.forEach(recipe => {
-                this.recipes.push({ ...recipe, id: this.nextId++ });
-            });
-            this.saveRecipes();
-            this.displayRecipes();
-        }
-    }
-
     openModal() {
         this.modal.classList.remove('hidden');
         this.clearForm();
@@ -172,172 +64,69 @@ class RecipeBook {
         status.className = 'extraction-status hidden';
     }
 
-async extractRecipe() {
-    const urlInput = document.getElementById('recipeUrl');
-    const url = urlInput.value.trim();
-    
-    if (!url) {
-        this.showExtractionStatus('Proszę wkleić link do przepisu', 'error');
-        return;
-    }
-
-    // Show loading state
-    const extractBtn = document.getElementById('extractBtn');
-    const extractText = extractBtn.querySelector('.extract-text');
-    const spinner = extractBtn.querySelector('.loading-spinner');
-    
-    extractBtn.disabled = true;
-    extractText.classList.add('hidden');
-    spinner.classList.remove('hidden');
-
-    this.showExtractionStatus('🤖 Próbuję wyodrębnić przepis...', 'info');
-
-    try {
-        // Spróbuj z prostszym podejściem - bezpośrednie pobieranie
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        const response = await fetch(proxyUrl);
+    // GŁÓWNA FUNKCJA WYODRĘBNIANIA - UŻYWA PRAWDZIWEGO API
+    async extractRecipe() {
+        const urlInput = document.getElementById('recipeUrl');
+        const url = urlInput.value.trim();
         
-        if (!response.ok) {
-            throw new Error('Nie można pobrać strony');
+        if (!url) {
+            this.showExtractionStatus('Proszę wkleić link do przepisu', 'error');
+            return;
         }
-        
-        const data = await response.json();
-        const html = data.contents;
-        
-        // Szukaj JSON-LD w HTML
-        const recipe = this.extractJsonLdFromHtml(html, url);
-        
-        if (recipe) {
-            // Wypełnij formularz prawdziwymi danymi
-            document.getElementById('recipeName').value = recipe.name;
-            document.getElementById('prepTime').value = recipe.prepTime || 'Nie podano';
-            document.getElementById('ingredients').value = recipe.ingredients.join('\n');
-            document.getElementById('instructions').value = recipe.instructions.join('\n');
-            
-            this.showExtractionStatus('✅ Przepis wyodrębniony pomyślnie!', 'success');
-        } else {
-            throw new Error('Nie znaleziono przepisu na tej stronie');
-        }
-        
-    } catch (error) {
-        console.error('Błąd:', error);
-        
-        // Fallback - inteligentny przykład na podstawie domeny
-        this.loadSmartFallback(url);
-        this.showExtractionStatus('⚠️ Nie udało się wyodrębnić automatycznie. Sprawdź i popraw dane ręcznie.', 'error');
-        
-    } finally {
-        extractBtn.disabled = false;
-        extractText.classList.remove('hidden');
-        spinner.classList.add('hidden');
-    }
-}
 
-// Nowa funkcja - wyodrębnianie JSON-LD z HTML
-extractJsonLdFromHtml(html, url) {
-    const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gis;
-    let match;
-    
-    while ((match = jsonLdRegex.exec(html)) !== null) {
+        // Sprawdź czy URL jest prawidłowy
         try {
-            const jsonData = JSON.parse(match[1]);
-            const items = Array.isArray(jsonData) ? jsonData : [jsonData];
-            
-            for (const item of items) {
-                if (item['@type'] === 'Recipe' || (Array.isArray(item['@type']) && item['@type'].includes('Recipe'))) {
-                    return {
-                        name: item.name || this.guessNameFromUrl(url),
-                        prepTime: this.parseDuration(item.prepTime) || 'Nie podano',
-                        ingredients: this.extractIngredients(item.recipeIngredient || []),
-                        instructions: this.extractInstructions(item.recipeInstructions || [])
-                    };
-                }
-            }
+            new URL(url);
         } catch (e) {
-            continue;
+            this.showExtractionStatus('Nieprawidłowy adres URL', 'error');
+            return;
         }
-    }
-    return null;
-}
 
-// Funkcja pomocnicza - zgaduje nazwę z URL
-guessNameFromUrl(url) {
-    try {
-        const pathname = new URL(url).pathname;
-        const segments = pathname.split('/').filter(s => s.length > 0);
-        const lastSegment = segments[segments.length - 1];
+        // Show loading state
+        const extractBtn = document.getElementById('extractBtn');
+        const extractText = extractBtn.querySelector('.extract-text');
+        const spinner = extractBtn.querySelector('.loading-spinner');
         
-        if (lastSegment && lastSegment !== 'index.html') {
-            return lastSegment
-                .replace(/[-_]/g, ' ')
-                .split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ');
+        extractBtn.disabled = true;
+        extractText.classList.add('hidden');
+        spinner.classList.remove('hidden');
+
+        this.showExtractionStatus('🤖 Analizuję przepis z podanego linku...', 'info');
+
+        try {
+            // UŻYWAMY PRAWDZIWEGO EKSTRAKTORA!
+            const extractor = new RecipeExtractor();
+            const recipe = await extractor.extractRecipe(url);
+            
+            if (recipe && recipe.name && recipe.ingredients && recipe.instructions) {
+                // Wypełnij formularz prawdziwymi danymi
+                document.getElementById('recipeName').value = recipe.name;
+                document.getElementById('prepTime').value = recipe.prepTime || 'Nie podano';
+                document.getElementById('ingredients').value = recipe.ingredients.join('\n');
+                document.getElementById('instructions').value = recipe.instructions.join('\n');
+
+                this.showExtractionStatus('✅ Przepis został pomyślnie wyodrębniony!', 'success');
+            } else {
+                throw new Error('Nie znaleziono przepisu na tej stronie');
+            }
+            
+        } catch (error) {
+            console.error('Błąd wyodrębniania:', error);
+            this.showExtractionStatus(`❌ ${error.message}`, 'error');
+            
+            // Wyczyść formularz przy błędzie
+            document.getElementById('recipeName').value = '';
+            document.getElementById('prepTime').value = '';
+            document.getElementById('ingredients').value = '';
+            document.getElementById('instructions').value = '';
+            
+        } finally {
+            // Reset button state
+            extractBtn.disabled = false;
+            extractText.classList.remove('hidden');
+            spinner.classList.add('hidden');
         }
-    } catch (e) {
-        // ignore
     }
-    return 'Wyodrębniony przepis';
-}
-
-// Funkcja pomocnicza - inteligentny fallback
-loadSmartFallback(url) {
-    const domain = new URL(url).hostname;
-    const examples = this.getAIExamples();
-    const randomRecipe = examples[Math.floor(Math.random() * examples.length)];
-    
-    document.getElementById('recipeName').value = `${randomRecipe.name} (ze strony ${domain})`;
-    document.getElementById('prepTime').value = randomRecipe.prepTime;
-    document.getElementById('ingredients').value = randomRecipe.ingredients.join('\n');
-    document.getElementById('instructions').value = randomRecipe.instructions.join('\n');
-}
-
-// Funkcje pomocnicze
-parseDuration(duration) {
-    if (!duration) return '';
-    
-    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
-    if (!match) return duration;
-    
-    const hours = parseInt(match[1] || '0');
-    const minutes = parseInt(match[2] || '0');
-    
-    const parts = [];
-    if (hours > 0) parts.push(`${hours} godz`);
-    if (minutes > 0) parts.push(`${minutes} min`);
-    
-    return parts.join(' ') || duration;
-}
-
-extractIngredients(ingredients) {
-    return ingredients.map(ingredient => {
-        if (typeof ingredient === 'string') return ingredient;
-        if (ingredient.text) return ingredient.text;
-        return JSON.stringify(ingredient);
-    });
-}
-
-extractInstructions(instructions) {
-    return instructions.map(instruction => {
-        if (typeof instruction === 'string') return instruction;
-        if (instruction.text) return instruction.text;
-        if (instruction.name) return instruction.name;
-        return JSON.stringify(instruction);
-    });
-}
-
-// Nowa funkcja pomocnicza - fallback gdy nie działa prawdziwy scraping
-loadFallbackRecipe(url) {
-    const examples = this.getAIExamples();
-    const randomRecipe = examples[Math.floor(Math.random() * examples.length)];
-    
-    document.getElementById('recipeName').value = randomRecipe.name + ` (z ${new URL(url).hostname})`;
-    document.getElementById('prepTime').value = randomRecipe.prepTime;
-    document.getElementById('ingredients').value = randomRecipe.ingredients.join('\n');
-    document.getElementById('instructions').value = randomRecipe.instructions.join('\n');
-    
-    this.showExtractionStatus('⚠️ Użyto przykładowego przepisu. Zmodyfikuj go ręcznie.', 'info');
-}
 
     showExtractionStatus(message, type) {
         const status = document.getElementById('extractionStatus');
@@ -388,6 +177,7 @@ loadFallbackRecipe(url) {
                 <div class="empty-state">
                     <h3>🍽️ Brak przepisów</h3>
                     <p>Dodaj swój pierwszy przepis, aby rozpocząć budowanie swojej książki kucharskiej!</p>
+                    <p><small>Wklej link do przepisu z internetu lub dodaj ręcznie.</small></p>
                 </div>
             `;
             return;
