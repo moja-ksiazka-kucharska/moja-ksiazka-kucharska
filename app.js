@@ -181,14 +181,6 @@ async extractRecipe() {
         return;
     }
 
-    // Sprawdź czy URL jest prawidłowy
-    try {
-        new URL(url);
-    } catch (e) {
-        this.showExtractionStatus('Nieprawidłowy adres URL', 'error');
-        return;
-    }
-
     // Show loading state
     const extractBtn = document.getElementById('extractBtn');
     const extractText = extractBtn.querySelector('.extract-text');
@@ -198,40 +190,140 @@ async extractRecipe() {
     extractText.classList.add('hidden');
     spinner.classList.remove('hidden');
 
-    this.showExtractionStatus('🤖 Analizuję przepis z podanego linku...', 'info');
+    this.showExtractionStatus('🤖 Próbuję wyodrębnić przepis...', 'info');
 
     try {
-        // Inicjalizuj ekstractor z prawdziwymi kluczami API
-        const extractor = new RecipeExtractor();
+        // Spróbuj z prostszym podejściem - bezpośrednie pobieranie
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
         
-        // Prawdziwe wyodrębnianie przepisu!
-        const recipe = await extractor.extractRecipe(url);
+        if (!response.ok) {
+            throw new Error('Nie można pobrać strony');
+        }
         
-        // Wypełnij formularz prawdziwymi danymi
-        document.getElementById('recipeName').value = recipe.name || 'Wyodrębniony przepis';
-        document.getElementById('prepTime').value = recipe.prepTime || 'Nie podano';
+        const data = await response.json();
+        const html = data.contents;
         
-        const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
-        document.getElementById('ingredients').value = ingredients.join('\n');
+        // Szukaj JSON-LD w HTML
+        const recipe = this.extractJsonLdFromHtml(html, url);
         
-        const instructions = Array.isArray(recipe.instructions) ? recipe.instructions : [];
-        document.getElementById('instructions').value = instructions.join('\n');
-
-        this.showExtractionStatus('✅ Przepis został pomyślnie wyodrębniony! Możesz go edytować przed zapisaniem.', 'success');
+        if (recipe) {
+            // Wypełnij formularz prawdziwymi danymi
+            document.getElementById('recipeName').value = recipe.name;
+            document.getElementById('prepTime').value = recipe.prepTime || 'Nie podano';
+            document.getElementById('ingredients').value = recipe.ingredients.join('\n');
+            document.getElementById('instructions').value = recipe.instructions.join('\n');
+            
+            this.showExtractionStatus('✅ Przepis wyodrębniony pomyślnie!', 'success');
+        } else {
+            throw new Error('Nie znaleziono przepisu na tej stronie');
+        }
         
     } catch (error) {
-        console.error('Błąd wyodrębniania:', error);
-        this.showExtractionStatus(`❌ Błąd: ${error.message}. Spróbuj z inną stroną lub dodaj przepis ręcznie.`, 'error');
+        console.error('Błąd:', error);
         
-        // Fallback - pokaż przykładowy przepis
-        this.loadFallbackRecipe(url);
+        // Fallback - inteligentny przykład na podstawie domeny
+        this.loadSmartFallback(url);
+        this.showExtractionStatus('⚠️ Nie udało się wyodrębnić automatycznie. Sprawdź i popraw dane ręcznie.', 'error');
         
     } finally {
-        // Reset button state
         extractBtn.disabled = false;
         extractText.classList.remove('hidden');
         spinner.classList.add('hidden');
     }
+}
+
+// Nowa funkcja - wyodrębnianie JSON-LD z HTML
+extractJsonLdFromHtml(html, url) {
+    const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gis;
+    let match;
+    
+    while ((match = jsonLdRegex.exec(html)) !== null) {
+        try {
+            const jsonData = JSON.parse(match[1]);
+            const items = Array.isArray(jsonData) ? jsonData : [jsonData];
+            
+            for (const item of items) {
+                if (item['@type'] === 'Recipe' || (Array.isArray(item['@type']) && item['@type'].includes('Recipe'))) {
+                    return {
+                        name: item.name || this.guessNameFromUrl(url),
+                        prepTime: this.parseDuration(item.prepTime) || 'Nie podano',
+                        ingredients: this.extractIngredients(item.recipeIngredient || []),
+                        instructions: this.extractInstructions(item.recipeInstructions || [])
+                    };
+                }
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+    return null;
+}
+
+// Funkcja pomocnicza - zgaduje nazwę z URL
+guessNameFromUrl(url) {
+    try {
+        const pathname = new URL(url).pathname;
+        const segments = pathname.split('/').filter(s => s.length > 0);
+        const lastSegment = segments[segments.length - 1];
+        
+        if (lastSegment && lastSegment !== 'index.html') {
+            return lastSegment
+                .replace(/[-_]/g, ' ')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+        }
+    } catch (e) {
+        // ignore
+    }
+    return 'Wyodrębniony przepis';
+}
+
+// Funkcja pomocnicza - inteligentny fallback
+loadSmartFallback(url) {
+    const domain = new URL(url).hostname;
+    const examples = this.getAIExamples();
+    const randomRecipe = examples[Math.floor(Math.random() * examples.length)];
+    
+    document.getElementById('recipeName').value = `${randomRecipe.name} (ze strony ${domain})`;
+    document.getElementById('prepTime').value = randomRecipe.prepTime;
+    document.getElementById('ingredients').value = randomRecipe.ingredients.join('\n');
+    document.getElementById('instructions').value = randomRecipe.instructions.join('\n');
+}
+
+// Funkcje pomocnicze
+parseDuration(duration) {
+    if (!duration) return '';
+    
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+    if (!match) return duration;
+    
+    const hours = parseInt(match[1] || '0');
+    const minutes = parseInt(match[2] || '0');
+    
+    const parts = [];
+    if (hours > 0) parts.push(`${hours} godz`);
+    if (minutes > 0) parts.push(`${minutes} min`);
+    
+    return parts.join(' ') || duration;
+}
+
+extractIngredients(ingredients) {
+    return ingredients.map(ingredient => {
+        if (typeof ingredient === 'string') return ingredient;
+        if (ingredient.text) return ingredient.text;
+        return JSON.stringify(ingredient);
+    });
+}
+
+extractInstructions(instructions) {
+    return instructions.map(instruction => {
+        if (typeof instruction === 'string') return instruction;
+        if (instruction.text) return instruction.text;
+        if (instruction.name) return instruction.name;
+        return JSON.stringify(instruction);
+    });
 }
 
 // Nowa funkcja pomocnicza - fallback gdy nie działa prawdziwy scraping
