@@ -32,25 +32,22 @@ class RecipeExtractor {
         }
     }
 
-    // Pobiera zawartość strony przez ScrapingBee
-    async fetchPageContent(url) {
-        const scrapingBeeUrl = `https://app.scrapingbee.com/api/v1/`;
-        
-        const params = new URLSearchParams({
-            api_key: this.scrapingBeeKey,
-            url: url,
-            render_js: 'false', // Oszczędzamy kredyty - większość stron nie potrzebuje JS
-            premium_proxy: 'false'
-        });
-
-        const response = await fetch(`${scrapingBeeUrl}?${params}`);
-        
-        if (!response.ok) {
-            throw new Error(`ScrapingBee error: ${response.status} ${response.statusText}`);
-        }
-
-        return await response.text();
+// Pobiera zawartość strony przez proxy CORS
+async fetchPageContent(url) {
+    // Używamy bezpłatnego proxy CORS
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    
+    console.log('🌐 Pobieram stronę przez proxy:', url);
+    
+    const response = await fetch(proxyUrl);
+    
+    if (!response.ok) {
+        throw new Error(`Proxy error: ${response.status} ${response.statusText}`);
     }
+    
+    const data = await response.json();
+    return data.contents;
+}
 
     // Wyodrębnia przepis z danych JSON-LD (Schema.org)
     extractJsonLdRecipe(html) {
