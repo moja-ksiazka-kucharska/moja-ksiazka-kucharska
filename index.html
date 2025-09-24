@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moja Książka Kucharska</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🍳 Moja Książka Kucharska</h1>
+            <button class="btn btn--primary" id="addRecipeBtn">
+                <span class="btn-icon">+</span>
+                Dodaj Przepis
+            </button>
+        </header>
+
+        <main class="main">
+            <div class="recipes-grid" id="recipesGrid">
+                <!-- Recipes will be displayed here -->
+            </div>
+        </main>
+
+        <!-- Add Recipe Modal -->
+        <div class="modal hidden" id="addRecipeModal">
+            <div class="modal-backdrop" id="modalBackdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Dodaj Nowy Przepis</h2>
+                    <button class="btn btn--secondary btn--sm" id="closeModalBtn">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- URL Extraction Section -->
+                    <div class="extraction-section">
+                        <h3>🤖 Automatyczne wyodrębnianie przepisu</h3>
+                        <div class="form-group">
+                            <label class="form-label" for="recipeUrl">Wklej link do przepisu:</label>
+                            <input type="url" class="form-control" id="recipeUrl" placeholder="https://example.com/recipe">
+                        </div>
+                        <button class="btn btn--primary" id="extractBtn">
+                            <span class="extract-text">Wyodrębnij przepis</span>
+                            <span class="loading-spinner hidden">⌛</span>
+                        </button>
+                        <div class="extraction-status hidden" id="extractionStatus"></div>
+                    </div>
+
+                    <div class="divider">LUB</div>
+
+                    <!-- Manual Recipe Form -->
+                    <div class="recipe-form">
+                        <h3>📝 Wprowadź przepis ręcznie</h3>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="recipeName">Nazwa przepisu:</label>
+                            <input type="text" class="form-control" id="recipeName" placeholder="np. Kotlety schabowe">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="prepTime">Czas przygotowania:</label>
+                            <input type="text" class="form-control" id="prepTime" placeholder="np. 30 min">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="ingredients">Składniki (jeden w każdej linii):</label>
+                            <textarea class="form-control" id="ingredients" rows="6" placeholder="500g mąki&#10;2 jajka&#10;300ml mleka"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="instructions">Instrukcje (jeden krok w każdej linii):</label>
+                            <textarea class="form-control" id="instructions" rows="6" placeholder="Wymieszaj mąkę z jajkami&#10;Dodaj mleko i mieszaj&#10;Smaż na patelni"></textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button class="btn btn--secondary" id="cancelBtn">Anuluj</button>
+                            <button class="btn btn--primary" id="saveBtn">💾 Zapisz przepis</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
