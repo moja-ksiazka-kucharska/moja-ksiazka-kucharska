@@ -172,46 +172,80 @@ class RecipeBook {
         status.className = 'extraction-status hidden';
     }
 
-    async extractRecipe() {
-        const urlInput = document.getElementById('recipeUrl');
-        const url = urlInput.value.trim();
-        
-        if (!url) {
-            this.showExtractionStatus('Proszę wkleić link do przepisu', 'error');
-            return;
-        }
-
-        // Show loading state
-        const extractBtn = document.getElementById('extractBtn');
-        const extractText = extractBtn.querySelector('.extract-text');
-        const spinner = extractBtn.querySelector('.loading-spinner');
-        
-        extractBtn.disabled = true;
-        extractText.classList.add('hidden');
-        spinner.classList.remove('hidden');
-
-        this.showExtractionStatus('🤖 Analizuję przepis...', 'info');
-
-        // Simulate AI processing
-        setTimeout(() => {
-            // Reset button state
-            extractBtn.disabled = false;
-            extractText.classList.remove('hidden');
-            spinner.classList.add('hidden');
-
-            // Get random example recipe
-            const examples = this.getAIExamples();
-            const randomRecipe = examples[Math.floor(Math.random() * examples.length)];
-            
-            // Fill form with extracted data
-            document.getElementById('recipeName').value = randomRecipe.name;
-            document.getElementById('prepTime').value = randomRecipe.prepTime;
-            document.getElementById('ingredients').value = randomRecipe.ingredients.join('\n');
-            document.getElementById('instructions').value = randomRecipe.instructions.join('\n');
-
-            this.showExtractionStatus('✅ Przepis został pomyślnie wyodrębniony! Możesz go edytować przed zapisaniem.', 'success');
-        }, 2000);
+async extractRecipe() {
+    const urlInput = document.getElementById('recipeUrl');
+    const url = urlInput.value.trim();
+    
+    if (!url) {
+        this.showExtractionStatus('Proszę wkleić link do przepisu', 'error');
+        return;
     }
+
+    // Sprawdź czy URL jest prawidłowy
+    try {
+        new URL(url);
+    } catch (e) {
+        this.showExtractionStatus('Nieprawidłowy adres URL', 'error');
+        return;
+    }
+
+    // Show loading state
+    const extractBtn = document.getElementById('extractBtn');
+    const extractText = extractBtn.querySelector('.extract-text');
+    const spinner = extractBtn.querySelector('.loading-spinner');
+    
+    extractBtn.disabled = true;
+    extractText.classList.add('hidden');
+    spinner.classList.remove('hidden');
+
+    this.showExtractionStatus('🤖 Analizuję przepis z podanego linku...', 'info');
+
+    try {
+        // Inicjalizuj ekstractor z prawdziwymi kluczami API
+        const extractor = new RecipeExtractor();
+        
+        // Prawdziwe wyodrębnianie przepisu!
+        const recipe = await extractor.extractRecipe(url);
+        
+        // Wypełnij formularz prawdziwymi danymi
+        document.getElementById('recipeName').value = recipe.name || 'Wyodrębniony przepis';
+        document.getElementById('prepTime').value = recipe.prepTime || 'Nie podano';
+        
+        const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+        document.getElementById('ingredients').value = ingredients.join('\n');
+        
+        const instructions = Array.isArray(recipe.instructions) ? recipe.instructions : [];
+        document.getElementById('instructions').value = instructions.join('\n');
+
+        this.showExtractionStatus('✅ Przepis został pomyślnie wyodrębniony! Możesz go edytować przed zapisaniem.', 'success');
+        
+    } catch (error) {
+        console.error('Błąd wyodrębniania:', error);
+        this.showExtractionStatus(`❌ Błąd: ${error.message}. Spróbuj z inną stroną lub dodaj przepis ręcznie.`, 'error');
+        
+        // Fallback - pokaż przykładowy przepis
+        this.loadFallbackRecipe(url);
+        
+    } finally {
+        // Reset button state
+        extractBtn.disabled = false;
+        extractText.classList.remove('hidden');
+        spinner.classList.add('hidden');
+    }
+}
+
+// Nowa funkcja pomocnicza - fallback gdy nie działa prawdziwy scraping
+loadFallbackRecipe(url) {
+    const examples = this.getAIExamples();
+    const randomRecipe = examples[Math.floor(Math.random() * examples.length)];
+    
+    document.getElementById('recipeName').value = randomRecipe.name + ` (z ${new URL(url).hostname})`;
+    document.getElementById('prepTime').value = randomRecipe.prepTime;
+    document.getElementById('ingredients').value = randomRecipe.ingredients.join('\n');
+    document.getElementById('instructions').value = randomRecipe.instructions.join('\n');
+    
+    this.showExtractionStatus('⚠️ Użyto przykładowego przepisu. Zmodyfikuj go ręcznie.', 'info');
+}
 
     showExtractionStatus(message, type) {
         const status = document.getElementById('extractionStatus');
