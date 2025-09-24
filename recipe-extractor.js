@@ -1,107 +1,129 @@
-// Recipe Extractor - Realny silnik wyodrębniania przepisów
+// Recipe Extractor - Prawdziwy silnik wyodrębniania przepisów
 class RecipeExtractor {
     constructor() {
-        // Tutaj wkleisz swoje klucze API
-        this.scrapingBeeKey = 'EZ4IZDOHS4SPS8SG4KWW3T6PUBGPFJ0SBVFWDPGTURQLAMHHPMW7SP2H0T8RVXUP3WBNNSDMU27ZPU5Q'; // Wklej tutaj klucz ze ScrapingBee
-        this.openAiKey = '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'; // Opcjonalnie - wklej klucz OpenAI
+        // Klucze API - działające!
+        this.scrapingBeeKey = 'EZ4IZDOHS4SPS8SG4KWW3T6PUBGPFJ0SBVFWDPGTURQLAMHHPMW7SP2H0T8RVXUP3WBNNSDMU27ZPU5Q';
+        this.openAiKey = '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';
     }
 
-    // Główna funkcja wyodrębniania przepisu
+    // GŁÓWNA FUNKCJA - wyodrębnia przepis z URL
     async extractRecipe(url) {
         console.log('🔍 Analizuję URL:', url);
         
         try {
-            // Krok 1: Pobierz zawartość strony
-            const content = await this.fetchPageContent(url);
+            // Pobierz zawartość strony
+            const html = await this.fetchPageContent(url);
+            console.log('✅ Pobrano zawartość strony');
             
-            // Krok 2: Spróbuj wyodrębnić JSON-LD (ustrukturyzowane dane)
-            const jsonLdRecipe = this.extractJsonLdRecipe(content);
-            if (jsonLdRecipe) {
-                console.log('✅ Znaleziono dane strukturalne JSON-LD');
-                return await this.translateToPolish(jsonLdRecipe);
+            // Szukaj JSON-LD (strukturalne dane)
+            const recipe = this.extractJsonLdFromHtml(html);
+            
+            if (recipe) {
+                console.log('✅ Znaleziono przepis w danych strukturalnych');
+                return await this.translateToPolish(recipe);
+            } else {
+                console.log('❌ Brak danych strukturalnych, próbuję z AI...');
+                
+                // Użyj AI jako backup
+                if (this.openAiKey && this.openAiKey.startsWith('sk-')) {
+                    return await this.extractWithAI(html);
+                } else {
+                    throw new Error('Brak danych przepisu na tej stronie. Spróbuj z inną stroną kulinarną.');
+                }
             }
             
-            // Krok 3: Jeśli nie ma JSON-LD, użyj AI
-            console.log('⚡ Używam AI do wyodrębnienia');
-            const aiRecipe = await this.extractWithAI(content);
-            return await this.translateToPolish(aiRecipe);
-            
         } catch (error) {
-            console.error('❌ Błąd przy wyodrębnianiu:', error);
-            throw new Error(`Nie udało się wyodrębnić przepisu: ${error.message}`);
+            console.error('❌ Błąd:', error);
+            throw new Error(error.message || 'Nie udało się wyodrębnić przepisu');
         }
     }
 
-// Pobiera zawartość strony przez proxy CORS
-async fetchPageContent(url) {
-    // Używamy bezpłatnego proxy CORS
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    
-    console.log('🌐 Pobieram stronę przez proxy:', url);
-    
-    const response = await fetch(proxyUrl);
-    
-    if (!response.ok) {
-        throw new Error(`Proxy error: ${response.status} ${response.statusText}`);
+    // Pobiera stronę przez bezpłatny proxy
+    async fetchPageContent(url) {
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+        
+        console.log('🌐 Pobieram przez proxy...');
+        
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+            throw new Error(`Nie można pobrać strony (${response.status})`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.contents) {
+            throw new Error('Pusta odpowiedź z serwera');
+        }
+        
+        return data.contents;
     }
-    
-    const data = await response.json();
-    return data.contents;
-}
 
-    // Wyodrębnia przepis z danych JSON-LD (Schema.org)
-    extractJsonLdRecipe(html) {
-        // Szuka skryptów z JSON-LD
+    // Wyodrębnia przepis z JSON-LD
+    extractJsonLdFromHtml(html) {
+        console.log('🔎 Szukam danych JSON-LD...');
+        
         const jsonLdRegex = /<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gis;
         let match;
         
         while ((match = jsonLdRegex.exec(html)) !== null) {
             try {
-                const jsonData = JSON.parse(match[1]);
+                const jsonText = match[1].trim();
+                const jsonData = JSON.parse(jsonText);
                 
-                // Może być pojedynczy obiekt lub tablica
+                // Może być obiekt lub tablica
                 const items = Array.isArray(jsonData) ? jsonData : [jsonData];
                 
                 for (const item of items) {
-                    const recipe = this.parseJsonLdItem(item);
-                    if (recipe) return recipe;
+                    const recipe = this.parseRecipeFromJsonLd(item);
+                    if (recipe) {
+                        console.log('✅ Znaleziono przepis:', recipe.name);
+                        return recipe;
+                    }
                 }
             } catch (e) {
-                // Kontynuuj szukanie w innych skryptach
+                console.log('⚠️ Błąd parsowania JSON-LD, próbuję dalej...');
                 continue;
             }
         }
         
+        console.log('❌ Nie znaleziono przepisu w JSON-LD');
         return null;
     }
 
-    // Parsuje pojedynczy element JSON-LD
-    parseJsonLdItem(item) {
+    // Parsuje przepis z obiektu JSON-LD
+    parseRecipeFromJsonLd(item) {
         // Sprawdź czy to przepis
-        const type = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];
-        if (!type.includes('Recipe')) return null;
+        const types = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];
+        
+        if (!types.some(type => type === 'Recipe')) {
+            return null;
+        }
 
-        return {
-            name: item.name || 'Bez nazwy',
-            prepTime: this.parseDuration(item.prepTime) || 'Nie podano',
-            cookTime: this.parseDuration(item.cookTime) || '',
-            totalTime: this.parseDuration(item.totalTime) || '',
+        const recipe = {
+            name: item.name || 'Przepis bez nazwy',
+            prepTime: this.parseDuration(item.prepTime),
+            cookTime: this.parseDuration(item.cookTime),
+            totalTime: this.parseDuration(item.totalTime),
             ingredients: this.extractIngredients(item.recipeIngredient || []),
-            instructions: this.extractInstructions(item.recipeInstructions || []),
-            servings: item.recipeYield || 'Nie podano',
-            description: item.description || '',
-            cuisine: item.recipeCuisine || '',
-            category: item.recipeCategory || ''
+            instructions: this.extractInstructions(item.recipeInstructions || [])
         };
+
+        // Sprawdź czy przepis ma podstawowe dane
+        if (recipe.ingredients.length === 0 && recipe.instructions.length === 0) {
+            return null;
+        }
+
+        return recipe;
     }
 
-    // Konwertuje czas ISO 8601 na czytelny format
+    // Konwertuje czas ISO (PT30M) na czytelny format
     parseDuration(duration) {
-        if (!duration) return '';
+        if (!duration) return 'Nie podano';
         
-        // Format PT30M (30 minut) lub PT1H30M (1 godzina 30 minut)
+        // PT30M = 30 minut, PT1H30M = 1 godzina 30 minut
         const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
-        if (!match) return duration; // Zwróć oryginalny jeśli nie można sparsować
+        if (!match) return duration;
         
         const hours = parseInt(match[1] || '0');
         const minutes = parseInt(match[2] || '0');
@@ -110,62 +132,62 @@ async fetchPageContent(url) {
         if (hours > 0) parts.push(`${hours} godz`);
         if (minutes > 0) parts.push(`${minutes} min`);
         
-        return parts.join(' ') || duration;
+        return parts.join(' ') || 'Nie podano';
     }
 
-    // Wyodrębnia składniki
+    // Wyodrębnia składniki z różnych formatów
     extractIngredients(ingredients) {
+        if (!Array.isArray(ingredients)) return [];
+        
         return ingredients.map(ingredient => {
-            if (typeof ingredient === 'string') return ingredient;
-            if (ingredient.text) return ingredient.text;
-            return JSON.stringify(ingredient);
-        });
+            if (typeof ingredient === 'string') {
+                return ingredient.trim();
+            }
+            if (ingredient.text) {
+                return ingredient.text.trim();
+            }
+            if (ingredient.name) {
+                return ingredient.name.trim();
+            }
+            return String(ingredient).trim();
+        }).filter(ingredient => ingredient.length > 0);
     }
 
-    // Wyodrębnia instrukcje
+    // Wyodrębnia instrukcje z różnych formatów
     extractInstructions(instructions) {
+        if (!Array.isArray(instructions)) return [];
+        
         return instructions.map(instruction => {
-            if (typeof instruction === 'string') return instruction;
-            if (instruction.text) return instruction.text;
-            if (instruction.name) return instruction.name;
-            return JSON.stringify(instruction);
-        });
+            if (typeof instruction === 'string') {
+                return instruction.trim();
+            }
+            if (instruction.text) {
+                return instruction.text.trim();
+            }
+            if (instruction.name) {
+                return instruction.name.trim();
+            }
+            return String(instruction).trim();
+        }).filter(instruction => instruction.length > 0);
     }
 
-    // Używa AI do wyodrębnienia przepisu (gdy brak JSON-LD)
+    // Używa AI do wyodrębnienia (backup)
     async extractWithAI(html) {
-        if (!this.openAiKey || this.openAiKey === 'TWOJ_OPENAI_KEY') {
-            // Fallback - zwróć przykładowy przepis
-            return {
-                name: 'Przepis wyodrębniony automatycznie',
-                prepTime: '30 min',
-                ingredients: [
-                    'Składnik 1',
-                    'Składnik 2', 
-                    'Składnik 3'
-                ],
-                instructions: [
-                    'Krok 1: Przygotuj składniki',
-                    'Krok 2: Wymieszaj wszystko',
-                    'Krok 3: Ugotuj według instrukcji'
-                ]
-            };
-        }
-
-        // Skróć HTML do istotnych części
+        console.log('🤖 Używam AI do wyodrębnienia...');
+        
         const cleanText = this.cleanHtmlForAI(html);
         
-        const prompt = `Wyodrębnij przepis kulinarny z poniższego tekstu strony internetowej. Zwróć wynik w formacie JSON:
+        const prompt = `Wyodrębnij przepis kulinarny z tekstu strony. Zwróć TYLKO poprawny JSON bez dodatkowych komentarzy:
 
 {
   "name": "nazwa przepisu",
-  "prepTime": "czas przygotowania",
+  "prepTime": "czas w minutach",
   "ingredients": ["składnik 1", "składnik 2"],
   "instructions": ["krok 1", "krok 2"]
 }
 
 Tekst strony:
-${cleanText.substring(0, 3000)}`;
+${cleanText.substring(0, 2500)}`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -176,44 +198,50 @@ ${cleanText.substring(0, 3000)}`;
             body: JSON.stringify({
                 model: 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: prompt }],
-                max_tokens: 1000,
-                temperature: 0.3
+                max_tokens: 800,
+                temperature: 0.2
             })
         });
 
         if (!response.ok) {
-            throw new Error('AI extraction failed');
+            const errorText = await response.text();
+            throw new Error(`AI API error: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
-        const content = data.choices[0].message.content;
+        const content = data.choices[0].message.content.trim();
         
         try {
-            return JSON.parse(content);
+            const recipe = JSON.parse(content);
+            console.log('✅ AI wyodrębniło przepis:', recipe.name);
+            return recipe;
         } catch (e) {
-            throw new Error('AI returned invalid JSON');
+            console.error('❌ AI zwróciło nieprawidłowy JSON:', content);
+            throw new Error('AI nie mogło przetworzyć tej strony');
         }
     }
 
-    // Czyści HTML dla AI (usuwa zbędne tagi)
+    // Czyści HTML dla AI
     cleanHtmlForAI(html) {
         return html
             .replace(/<script[^>]*>.*?<\/script>/gis, '')
             .replace(/<style[^>]*>.*?<\/style>/gis, '')
             .replace(/<nav[^>]*>.*?<\/nav>/gis, '')
             .replace(/<footer[^>]*>.*?<\/footer>/gis, '')
+            .replace(/<header[^>]*>.*?<\/header>/gis, '')
             .replace(/<[^>]+>/g, ' ')
             .replace(/\s+/g, ' ')
+            .replace(/\n+/g, ' ')
             .trim();
     }
 
-    // Tłumaczy przepis na polski (jeśli potrzeba)
+    // Tłumaczy przepis na polski
     async translateToPolish(recipe) {
-        // Prosta detekcja języka - sprawdź czy są polskie znaki
+        // Sprawdź czy już po polsku
         const polishPattern = /[ąćęłńóśźż]/i;
-        const isAlreadyPolish = polishPattern.test(recipe.name + ' ' + recipe.ingredients.join(' '));
+        const textToCheck = `${recipe.name} ${recipe.ingredients.join(' ')} ${recipe.instructions.join(' ')}`;
         
-        if (isAlreadyPolish) {
+        if (polishPattern.test(textToCheck)) {
             console.log('✅ Przepis już w języku polskim');
             return recipe;
         }
@@ -221,53 +249,64 @@ ${cleanText.substring(0, 3000)}`;
         console.log('🔄 Tłumaczę na polski...');
         
         try {
-            // Używamy bezpłatnego Google Translate
-            recipe.name = await this.translateText(recipe.name);
-            recipe.ingredients = await Promise.all(
-                recipe.ingredients.map(ingredient => this.translateText(ingredient))
-            );
-            recipe.instructions = await Promise.all(
-                recipe.instructions.map(instruction => this.translateText(instruction))
-            );
+            // Tłumacz tylko jeśli tekst nie jest już po polsku
+            const translatedRecipe = { ...recipe };
             
-            return recipe;
+            translatedRecipe.name = await this.translateText(recipe.name);
+            
+            // Tłumacz składniki (po kolei, żeby nie przekroczyć limitów)
+            translatedRecipe.ingredients = [];
+            for (const ingredient of recipe.ingredients) {
+                const translated = await this.translateText(ingredient);
+                translatedRecipe.ingredients.push(translated);
+                await this.sleep(100); // Krótka przerwa
+            }
+            
+            // Tłumacz instrukcje
+            translatedRecipe.instructions = [];
+            for (const instruction of recipe.instructions) {
+                const translated = await this.translateText(instruction);
+                translatedRecipe.instructions.push(translated);
+                await this.sleep(100);
+            }
+            
+            console.log('✅ Przepis przetłumaczony na polski');
+            return translatedRecipe;
+            
         } catch (e) {
-            console.warn('⚠️ Nie udało się przetłumaczyć, zwracam oryginalny przepis');
+            console.warn('⚠️ Błąd tłumaczenia, zwracam oryginalny przepis');
             return recipe;
         }
     }
 
-    // Przetłumacz pojedynczy tekst
+    // Tłumaczy pojedynczy tekst
     async translateText(text) {
-        // Prosty translator używający publicznego API
+        if (!text || text.length === 0) return text;
+        
         try {
-            const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|pl`);
+            const response = await fetch(
+                `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|pl`
+            );
+            
+            if (!response.ok) {
+                return text;
+            }
+            
             const data = await response.json();
             
             if (data.responseData && data.responseData.translatedText) {
                 return data.responseData.translatedText;
             }
+            
+            return text;
         } catch (e) {
-            // Jeśli tłumaczenie nie działa, zwróć oryginalny tekst
+            return text;
         }
-        
-        return text;
     }
 
-    // Test funkcji - sprawdza czy klucze API działają
-    async testConnection() {
-        console.log('🧪 Testuję połączenie z API...');
-        
-        try {
-            // Test ScrapingBee
-            await this.fetchPageContent('https://httpbin.org/html');
-            console.log('✅ ScrapingBee działa!');
-            
-            return true;
-        } catch (error) {
-            console.error('❌ Test połączenia nie powiódł się:', error);
-            return false;
-        }
+    // Pomocnicza funkcja - czeka określony czas
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }
 
